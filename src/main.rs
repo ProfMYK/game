@@ -56,12 +56,13 @@ impl SpriteAnimation {
     }
 }
 
-#[derive(PartialEq, Eq, Hash, Debug)]
+#[derive(PartialEq, Eq, Hash, Debug, Clone, Copy)]
 enum AnimationType {
     Idle(Direction),
+    Run(Direction),
 }
 
-#[derive(PartialEq, Eq, Hash, Debug)]
+#[derive(PartialEq, Eq, Hash, Debug, Clone, Copy)]
 enum Direction {
     UP,
     DOWN,
@@ -74,20 +75,20 @@ struct Player {
     animations: HashMap<AnimationType, SpriteAnimation>,
     pos: Vector2,
     current_animation: AnimationType,
-    direction: Direction,
     is_moving: bool,
+    speed: f32,
 }
 
 impl Player {
-    fn new(x: f32, y: f32, width: f32, height: f32) -> Player {
+    fn new(x: f32, y: f32, width: f32, height: f32, speed: f32) -> Player {
         let animations = HashMap::new();
         Player { 
             collision: Rectangle::new(x, y, width, height), 
             animations, 
             pos: Vector2::zero(), 
             current_animation: AnimationType::Idle(Direction::DOWN),
-            direction: Direction::DOWN,
             is_moving: false,
+            speed,
         }
     }
 
@@ -118,8 +119,22 @@ impl Player {
         animation.draw(self.pos, d);
     }
 
-    fn change_direction(&mut self, dir: Direction) {
-        self.change_animation(AnimationType::Idle(dir));
+    fn move_player(&mut self, dir: Direction) {
+        match dir {
+            Direction::UP => {
+                self.pos.y -= self.speed;
+            },
+            Direction::DOWN => {
+                self.pos.y += self.speed;
+            },
+            Direction::RIGHT => {
+                self.pos.x += self.speed;
+            },
+            Direction::LEFT => {
+                self.pos.x -= self.speed;
+            },
+        }
+        self.change_animation(AnimationType::Run(dir));
     }
 }
 
@@ -133,7 +148,7 @@ fn main() {
         .build();
 
 
-    let mut player = Player::new(42.0, 58.0, 12.0, 28.0);
+    let mut player = Player::new(42.0, 58.0, 12.0, 28.0, 2.0);
     player.add_animation(
         &mut rl, &thread, 
         AnimationType::Idle(Direction::DOWN), "resources/Hero/Sprites/IDLE/idle_down.png",
@@ -158,20 +173,57 @@ fn main() {
         8, 20
     );
 
+    player.add_animation(
+        &mut rl, &thread, 
+        AnimationType::Run(Direction::DOWN), "resources/Hero/Sprites/RUN/run_down.png",
+        8, 20
+    );
+
+    player.add_animation(
+        &mut rl, &thread, 
+        AnimationType::Run(Direction::UP), "resources/Hero/Sprites/RUN/run_up.png",
+        8, 20
+    );
+
+    player.add_animation(
+        &mut rl, &thread, 
+        AnimationType::Run(Direction::RIGHT), "resources/Hero/Sprites/RUN/run_right.png",
+        8, 20
+    );
+
+    player.add_animation(
+        &mut rl, &thread, 
+        AnimationType::Run(Direction::LEFT), "resources/Hero/Sprites/RUN/run_left.png",
+        8, 20
+    );
+
     rl.set_target_fps(60);
 
     while !rl.window_should_close() {
-        if rl.is_key_pressed(KeyboardKey::KEY_A) {
-            player.change_direction(Direction::LEFT);
+        if rl.is_key_down(KeyboardKey::KEY_A) {
+            player.move_player(Direction::LEFT);
         }
-        if rl.is_key_pressed(KeyboardKey::KEY_D) {
-            player.change_direction(Direction::RIGHT);
+        if rl.is_key_down(KeyboardKey::KEY_D) {
+            player.move_player(Direction::RIGHT);
         }
-        if rl.is_key_pressed(KeyboardKey::KEY_S) {
-            player.change_direction(Direction::DOWN); 
+        if rl.is_key_down(KeyboardKey::KEY_S) {
+            player.move_player(Direction::DOWN); 
         }
-        if rl.is_key_pressed(KeyboardKey::KEY_W) {
-            player.change_direction(Direction::UP);
+        if rl.is_key_down(KeyboardKey::KEY_W) {
+            player.move_player(Direction::UP);
+        }
+
+        if rl.is_key_released(KeyboardKey::KEY_A) {
+            player.change_animation(AnimationType::Idle(Direction::LEFT));
+        }
+        if rl.is_key_released(KeyboardKey::KEY_D) {
+            player.change_animation(AnimationType::Idle(Direction::RIGHT));
+        }
+        if rl.is_key_released(KeyboardKey::KEY_S) {
+            player.change_animation(AnimationType::Idle(Direction::DOWN));
+        }
+        if rl.is_key_released(KeyboardKey::KEY_W) {
+            player.change_animation(AnimationType::Idle(Direction::UP));
         }
 
         player.animate();
