@@ -24,6 +24,11 @@ impl SpriteAnimation {
         }
     }
 
+    fn reset(&mut self) {
+        self.current_frame = 0;
+        self.frames_counter = 0;
+    }
+
     fn animate(&mut self) {
         self.frames_counter += 1;
         if self.frames_counter >= (60 / self.anim_speed) {
@@ -44,7 +49,7 @@ impl SpriteAnimation {
             self.texture.height as f32
         );
 
-        let dest_rec = Rectangle::new(pos.x, pos.y, self.frame_width, self.texture.height as f32);
+        let dest_rec = Rectangle::new(pos.x, pos.y, self.frame_width * 1.5, self.texture.height as f32 * 1.5);
         d.draw_texture_pro(
             &self.texture,
             source_rec,
@@ -60,14 +65,24 @@ impl SpriteAnimation {
 enum AnimationType {
     Idle(Direction),
     Run(Direction),
+    Attack1(Direction),
+    Attack2(Direction),
+}
+
+impl AnimationType {
+    fn direction(&self) -> Direction {
+        match self {
+            Self::Idle(d) | Self::Run(d) | Self::Attack1(d) | Self::Attack2(d) => *d,
+        }
+    }
 }
 
 #[derive(PartialEq, Eq, Hash, Debug, Clone, Copy)]
 enum Direction {
-    UP,
-    DOWN,
-    LEFT,
-    RIGHT,
+    Up,
+    Down,
+    Left,
+    Right,
 }
 
 struct Player {
@@ -75,7 +90,8 @@ struct Player {
     animations: HashMap<AnimationType, SpriteAnimation>,
     pos: Vector2,
     current_animation: AnimationType,
-    is_moving: bool,
+    direction: Direction,
+    is_attacking: bool,
     speed: f32,
 }
 
@@ -86,8 +102,9 @@ impl Player {
             collision: Rectangle::new(x, y, width, height), 
             animations, 
             pos: Vector2::zero(), 
-            current_animation: AnimationType::Idle(Direction::DOWN),
-            is_moving: false,
+            current_animation: AnimationType::Idle(Direction::Down),
+            direction: Direction::Down,
+            is_attacking: false,
             speed,
         }
     }
@@ -104,13 +121,23 @@ impl Player {
     }
 
     fn change_animation(&mut self, animation_type: AnimationType) {
-        self.current_animation = animation_type;
+        if !self.is_attacking {
+            self.current_animation = animation_type;
+        }
     }
 
     fn animate(&mut self) {
         let animation = self.animations.get_mut(&self.current_animation)
             .expect("Couldn't found animation {:?}, on player.");
         animation.animate();
+
+        if matches!(self.current_animation, AnimationType::Attack1(_)) {
+            if animation.current_frame == animation.num_frames - 1 {
+                animation.reset();
+                self.is_attacking = false;
+                self.current_animation = AnimationType::Idle(self.current_animation.direction());
+            }
+        }
     }
 
     fn draw(&self, d: &mut RaylibDrawHandle) {
@@ -120,21 +147,29 @@ impl Player {
     }
 
     fn move_player(&mut self, dir: Direction) {
-        match dir {
-            Direction::UP => {
-                self.pos.y -= self.speed;
-            },
-            Direction::DOWN => {
-                self.pos.y += self.speed;
-            },
-            Direction::RIGHT => {
-                self.pos.x += self.speed;
-            },
-            Direction::LEFT => {
-                self.pos.x -= self.speed;
-            },
+        if !self.is_attacking {
+            match dir {
+                Direction::Up => {
+                    self.pos.y -= self.speed;
+                },
+                Direction::Down => {
+                    self.pos.y += self.speed;
+                },
+                Direction::Right => {
+                    self.pos.x += self.speed;
+                },
+                Direction::Left => {
+                    self.pos.x -= self.speed;
+                },
+            }
+            self.change_animation(AnimationType::Run(dir));
         }
-        self.change_animation(AnimationType::Run(dir));
+        self.direction = dir;
+    }
+
+    fn play_attack_animation(&mut self) {
+        self.change_animation(AnimationType::Attack1(self.direction));
+        self.is_attacking = true;
     }
 }
 
@@ -148,52 +183,76 @@ fn main() {
         .build();
 
 
-    let mut player = Player::new(42.0, 58.0, 12.0, 28.0, 2.0);
+    let mut player = Player::new(42.0, 58.0, 12.0, 28.0, 3.0);
     player.add_animation(
         &mut rl, &thread, 
-        AnimationType::Idle(Direction::DOWN), "resources/Hero/Sprites/IDLE/idle_down.png",
+        AnimationType::Idle(Direction::Down), "resources/Hero/Sprites/IDLE/idle_down.png",
         8, 20
     );
 
     player.add_animation(
         &mut rl, &thread, 
-        AnimationType::Idle(Direction::UP), "resources/Hero/Sprites/IDLE/idle_up.png",
+        AnimationType::Idle(Direction::Up), "resources/Hero/Sprites/IDLE/idle_up.png",
         8, 20
     );
 
     player.add_animation(
         &mut rl, &thread, 
-        AnimationType::Idle(Direction::RIGHT), "resources/Hero/Sprites/IDLE/idle_right.png",
+        AnimationType::Idle(Direction::Right), "resources/Hero/Sprites/IDLE/idle_right.png",
         8, 20
     );
 
     player.add_animation(
         &mut rl, &thread, 
-        AnimationType::Idle(Direction::LEFT), "resources/Hero/Sprites/IDLE/idle_left.png",
+        AnimationType::Idle(Direction::Left), "resources/Hero/Sprites/IDLE/idle_left.png",
         8, 20
     );
 
     player.add_animation(
         &mut rl, &thread, 
-        AnimationType::Run(Direction::DOWN), "resources/Hero/Sprites/RUN/run_down.png",
+        AnimationType::Run(Direction::Down), "resources/Hero/Sprites/RUN/run_down.png",
         8, 20
     );
 
     player.add_animation(
         &mut rl, &thread, 
-        AnimationType::Run(Direction::UP), "resources/Hero/Sprites/RUN/run_up.png",
+        AnimationType::Run(Direction::Up), "resources/Hero/Sprites/RUN/run_up.png",
         8, 20
     );
 
     player.add_animation(
         &mut rl, &thread, 
-        AnimationType::Run(Direction::RIGHT), "resources/Hero/Sprites/RUN/run_right.png",
+        AnimationType::Run(Direction::Right), "resources/Hero/Sprites/RUN/run_right.png",
         8, 20
     );
 
     player.add_animation(
         &mut rl, &thread, 
-        AnimationType::Run(Direction::LEFT), "resources/Hero/Sprites/RUN/run_left.png",
+        AnimationType::Run(Direction::Left), "resources/Hero/Sprites/RUN/run_left.png",
+        8, 20
+    );
+
+    player.add_animation(
+        &mut rl, &thread, 
+        AnimationType::Attack1(Direction::Down), "resources/Hero/Sprites/ATTACK 1/attack1_down.png",
+        8, 20
+    );
+
+    player.add_animation(
+        &mut rl, &thread, 
+        AnimationType::Attack1(Direction::Up), "resources/Hero/Sprites/ATTACK 1/attack1_up.png",
+        8, 20
+    );
+
+    player.add_animation(
+        &mut rl, &thread, 
+        AnimationType::Attack1(Direction::Left), "resources/Hero/Sprites/ATTACK 1/attack1_left.png",
+        8, 20
+    );
+
+    player.add_animation(
+        &mut rl, &thread, 
+        AnimationType::Attack1(Direction::Right), "resources/Hero/Sprites/ATTACK 1/attack1_right.png",
         8, 20
     );
 
@@ -201,30 +260,34 @@ fn main() {
 
     while !rl.window_should_close() {
         if rl.is_key_down(KeyboardKey::KEY_A) {
-            player.move_player(Direction::LEFT);
+            player.move_player(Direction::Left);
         }
         if rl.is_key_down(KeyboardKey::KEY_D) {
-            player.move_player(Direction::RIGHT);
+            player.move_player(Direction::Right);
         }
         if rl.is_key_down(KeyboardKey::KEY_S) {
-            player.move_player(Direction::DOWN); 
+            player.move_player(Direction::Down); 
         }
         if rl.is_key_down(KeyboardKey::KEY_W) {
-            player.move_player(Direction::UP);
+            player.move_player(Direction::Up);
         }
 
         if rl.is_key_released(KeyboardKey::KEY_A) {
-            player.change_animation(AnimationType::Idle(Direction::LEFT));
+            player.change_animation(AnimationType::Idle(Direction::Left));
         }
         if rl.is_key_released(KeyboardKey::KEY_D) {
-            player.change_animation(AnimationType::Idle(Direction::RIGHT));
+            player.change_animation(AnimationType::Idle(Direction::Right));
         }
         if rl.is_key_released(KeyboardKey::KEY_S) {
-            player.change_animation(AnimationType::Idle(Direction::DOWN));
+            player.change_animation(AnimationType::Idle(Direction::Down));
         }
         if rl.is_key_released(KeyboardKey::KEY_W) {
-            player.change_animation(AnimationType::Idle(Direction::UP));
+            player.change_animation(AnimationType::Idle(Direction::Up));
         }
+        if rl.is_key_pressed(KeyboardKey::KEY_SPACE) {
+            player.play_attack_animation();
+        }
+
 
         player.animate();
 
